@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { SessionProvider } from "next-auth/react";
 
 export const metadata: Metadata = {
   title: "Formless",
@@ -13,7 +14,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="h-full">
-      <body className="min-h-full flex flex-col" style={{ backgroundColor: '#0f0f0f', color: '#ffffff' }}>{children}</body>
+      <body className="min-h-full flex flex-col" style={{ backgroundColor: '#0f0f0f', color: '#ffffff' }}>
+        <SessionProvider>
+          {children}
+        </SessionProvider>
+      </body>
     </html>
   );
 }

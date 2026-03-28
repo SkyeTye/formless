@@ -14,7 +14,8 @@ export interface Form {
   sections: Section[];
   estimatedMinutes: number;
   createdAt: string;
-  creatorKey: string; // simple secret to view results
+  creatorKey: string; // simple secret to view results (legacy fallback)
+  creatorId: string; // auth user id
 }
 
 export interface Message {

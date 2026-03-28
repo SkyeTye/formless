@@ -13,6 +13,17 @@ async function kvGetForm(id: string): Promise<Form | undefined> {
 async function kvSaveForm(form: Form): Promise<void> {
   const { kv } = await import('@vercel/kv');
   await kv.set(`form:${form.id}`, form);
+  if (form.creatorId) {
+    await kv.sadd(`user_forms:${form.creatorId}`, form.id);
+  }
+}
+
+async function kvGetFormsByUser(creatorId: string): Promise<Form[]> {
+  const { kv } = await import('@vercel/kv');
+  const ids = await kv.smembers(`user_forms:${creatorId}`);
+  if (!ids.length) return [];
+  const forms = await Promise.all(ids.map(id => kv.get<Form>(`form:${id}`)));
+  return forms.filter(Boolean) as Form[];
 }
 
 async function kvGetResponses(formId: string): Promise<Response[]> {
@@ -56,6 +67,12 @@ function fileSaveForm(form: Form): void {
   fs.writeFileSync(FORMS_FILE, JSON.stringify(updated, null, 2));
 }
 
+function fileGetFormsByUser(creatorId: string): Form[] {
+  const { fs, FORMS_FILE } = fileStorage();
+  const forms: Form[] = JSON.parse(fs.readFileSync(FORMS_FILE, 'utf-8'));
+  return forms.filter(f => f.creatorId === creatorId);
+}
+
 function fileGetResponses(formId: string): Response[] {
   const { fs, RESPONSES_FILE } = fileStorage();
   const all: Response[] = JSON.parse(fs.readFileSync(RESPONSES_FILE, 'utf-8'));
@@ -85,4 +102,8 @@ export async function getResponses(formId: string): Promise<Response[]> {
 
 export async function saveResponse(response: Response): Promise<void> {
   return useKV ? kvSaveResponse(response) : fileSaveResponse(response);
+}
+
+export async function getFormsByUser(creatorId: string): Promise<Form[]> {
+  return useKV ? kvGetFormsByUser(creatorId) : fileGetFormsByUser(creatorId);
 }

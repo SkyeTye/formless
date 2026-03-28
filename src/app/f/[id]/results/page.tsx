@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams, useSearchParams } from 'next/navigation';
+import { useParams, useSearchParams, useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { Form, Response, SectionResponse } from '@/lib/types';
 
 interface ResultsData {
@@ -12,6 +13,8 @@ interface ResultsData {
 export default function ResultsPage() {
   const params = useParams();
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const { status } = useSession();
   const formId = params.id as string;
   const key = searchParams.get('key');
 
@@ -21,15 +24,21 @@ export default function ResultsPage() {
   const [expandedTranscripts, setExpandedTranscripts] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    if (!key) {
-      setError('No creator key provided. Please use the full results URL.');
-      setLoading(false);
+    // Wait for session to resolve before deciding what to do
+    if (status === 'loading') return;
+
+    if (status === 'unauthenticated' && !key) {
+      router.push('/');
       return;
     }
 
-    fetch(`/api/forms/${formId}/results?key=${encodeURIComponent(key)}`)
+    const url = key
+      ? `/api/forms/${formId}/results?key=${encodeURIComponent(key)}`
+      : `/api/forms/${formId}/results`;
+
+    fetch(url)
       .then(r => {
-        if (r.status === 401) throw new Error('Invalid creator key.');
+        if (r.status === 401) throw new Error('You do not have access to these results.');
         if (r.status === 404) throw new Error('Form not found.');
         if (!r.ok) throw new Error('Failed to load results.');
         return r.json();
@@ -42,13 +51,13 @@ export default function ResultsPage() {
         setError(e.message);
         setLoading(false);
       });
-  }, [formId, key]);
+  }, [formId, key, status, router]);
 
-  const toggleTranscript = (key: string) => {
+  const toggleTranscript = (transcriptKey: string) => {
     setExpandedTranscripts(prev => {
       const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
+      if (next.has(transcriptKey)) next.delete(transcriptKey);
+      else next.add(transcriptKey);
       return next;
     });
   };
@@ -73,7 +82,7 @@ export default function ResultsPage() {
     borderRadius: '16px',
   };
 
-  if (loading) {
+  if (status === 'loading' || loading) {
     return (
       <main className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#0f0f0f' }}>
         <div className="flex gap-2">
@@ -91,6 +100,15 @@ export default function ResultsPage() {
         <div className="text-center">
           <p className="text-xl font-semibold mb-2">Access denied</p>
           <p style={{ color: '#888888' }}>{error}</p>
+          <button
+            onClick={() => router.push('/')}
+            className="mt-6 text-sm px-4 py-2 rounded-lg transition-all"
+            style={{ backgroundColor: '#1a1a1a', color: '#888888', border: '1px solid #2a2a2a' }}
+            onMouseEnter={e => (e.currentTarget.style.color = '#ffffff')}
+            onMouseLeave={e => (e.currentTarget.style.color = '#888888')}
+          >
+            Go home
+          </button>
         </div>
       </main>
     );
@@ -106,6 +124,16 @@ export default function ResultsPage() {
         {/* Header */}
         <div className="mb-10 fade-in">
           <div className="flex items-center gap-2 mb-4">
+            <button
+              onClick={() => router.push('/dashboard')}
+              className="text-xs transition-colors mr-2"
+              style={{ color: '#555555' }}
+              onMouseEnter={e => (e.currentTarget.style.color = '#7c6fef')}
+              onMouseLeave={e => (e.currentTarget.style.color = '#555555')}
+            >
+              Dashboard
+            </button>
+            <span style={{ color: '#333333' }}>›</span>
             <span
               className="text-xs font-semibold uppercase tracking-wider px-2 py-1 rounded-md"
               style={{ backgroundColor: '#7c6fef20', color: '#7c6fef' }}
@@ -197,7 +225,7 @@ export default function ResultsPage() {
                               onMouseEnter={e => (e.currentTarget.style.color = '#7c6fef')}
                               onMouseLeave={e => (e.currentTarget.style.color = '#444444')}
                             >
-                              {isExpanded ? '▲ Hide transcript' : '▼ Show transcript'} ({sr.transcript.length} message{sr.transcript.length !== 1 ? 's' : ''})
+                              {isExpanded ? 'Hide transcript' : 'Show transcript'} ({sr.transcript.length} message{sr.transcript.length !== 1 ? 's' : ''})
                             </button>
                           )}
                         </div>
